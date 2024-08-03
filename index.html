@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Scanner</title>
     <script src="https://unpkg.com/@zxing/library@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
 </head>
 <body>
     <h1>Barcode Scanner</h1>
@@ -16,34 +15,64 @@
     <input type="text" id="result" readonly>
 
     <script>
-        const codeReader = new ZXing.BrowserMultiFormatReader();
         const video = document.getElementById('video');
         const startButton = document.getElementById('startButton');
         const resultInput = document.getElementById('result');
 
         let lastScannedCode = '';
         let lastScannedTime = 0;
-        let beep;
+        let audioContext;
+        let beepBuffer;
+
+        // Erstelle Audio-Kontext und lade den Beep-Sound
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            fetch('https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3')
+                .then(response => response.arrayBuffer())
+                .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+                .then(audioBuffer => {
+                    beepBuffer = audioBuffer;
+                });
+        }
+
+        // Spiele den Beep-Sound ab
+        function playBeep() {
+            if (audioContext && beepBuffer) {
+                const source = audioContext.createBufferSource();
+                source.buffer = beepBuffer;
+                source.connect(audioContext.destination);
+                source.start();
+            }
+        }
 
         startButton.addEventListener('click', () => {
-            // Initialisiere den Sound erst nach Benutzerinteraktion
-            if (!beep) {
-                beep = new Howl({
-                    src: ['https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3']
-                });
+            if (!audioContext) {
+                initAudio();
             }
+
+            const hints = new Map();
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                ZXing.BarcodeFormat.QR_CODE,
+                ZXing.BarcodeFormat.EAN_13,
+                ZXing.BarcodeFormat.CODE_128,
+                ZXing.BarcodeFormat.DATA_MATRIX,
+                // Fügen Sie hier weitere Formate hinzu, die Sie unterstützen möchten
+            ]);
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+            const codeReader = new ZXing.BrowserMultiFormatReader(hints);
 
             codeReader.listVideoInputDevices()
                 .then((videoInputDevices) => {
                     const selectedDeviceId = videoInputDevices[0].deviceId;
-                    startScanning(selectedDeviceId);
+                    startScanning(codeReader, selectedDeviceId);
                 })
                 .catch((err) => {
                     console.error(err);
                 });
         });
 
-        function startScanning(deviceId) {
+        function startScanning(codeReader, deviceId) {
             codeReader.decodeFromVideoDevice(deviceId, 'video', (result, err) => {
                 if (result) {
                     const currentTime = Date.now();
@@ -51,7 +80,7 @@
                         lastScannedCode = result.text;
                         lastScannedTime = currentTime;
                         resultInput.value = result.text;
-                        beep.play();
+                        playBeep();
                     }
                 }
                 if (err && !(err instanceof ZXing.NotFoundException)) {
@@ -63,7 +92,9 @@
         }
 
         window.addEventListener('beforeunload', () => {
-            codeReader.reset();
+            if (codeReader) {
+                codeReader.reset();
+            }
         });
     </script>
 </body>
