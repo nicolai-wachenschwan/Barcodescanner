@@ -7,7 +7,7 @@
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
         #scanner-container { position: relative; }
-        #video { width: 100%; max-width: 640px; }
+        #video { width: 100%; max-width: 500px; }
         #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 2px solid #ff0000; box-sizing: border-box; }
     </style>
 </head>
@@ -31,60 +31,50 @@
         const resultInput = document.getElementById('result');
 
         let codeReader;
-        let audioContext;
-
-        function initAudio() {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
+        let lastScannedCode = '';
 
         function beep() {
-            if (!audioContext) initAudio();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const context = new AudioContext();
+            const oscillator = context.createOscillator();
             oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(1, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+            oscillator.frequency.setValueAtTime(800, context.currentTime);
+            oscillator.connect(context.destination);
             oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.5);
+            oscillator.stop(context.currentTime + 0.1);
         }
 
-        startButton.addEventListener('click', startScanner);
-        testAudioButton.addEventListener('click', beep);
+        startButton.addEventListener('click', () => {
+            startScanner();
+        });
+
+        testAudioButton.addEventListener('click', () => {
+            beep();
+        });
 
         function startScanner() {
             codeReader = new ZXing.BrowserMultiFormatReader();
             
-            const constraints = {
-                video: {
-                    facingMode: "environment",
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                }
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then(stream => {
-                    video.srcObject = stream;
-                    video.setAttribute("playsinline", true);
-                    video.play();
-                    requestAnimationFrame(scan);
+            codeReader.listVideoInputDevices()
+                .then((videoInputDevices) => {
+                    const selectedDeviceId = videoInputDevices[0].deviceId;
+                    codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+                        if (result) {
+                            if (result.text !== lastScannedCode) {
+                                lastScannedCode = result.text;
+                                resultInput.value = result.text;
+                                beep();
+                                flashOverlay();
+                            }
+                        }
+                        if (err && !(err instanceof ZXing.NotFoundException)) {
+                            console.error(err);
+                        }
+                    });
                 })
-                .catch(err => console.error("Error accessing the camera", err));
-        }
-
-        function scan() {
-            if (codeReader && video.readyState === video.HAVE_ENOUGH_DATA) {
-                const result = codeReader.decodeFromVideoElement(video);
-                if (result) {
-                    resultInput.value = result.text;
-                    beep();
-                    flashOverlay();
-                }
-            }
-            requestAnimationFrame(scan);
+                .catch((err) => {
+                    console.error(err);
+                });
         }
 
         function flashOverlay() {
