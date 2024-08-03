@@ -23,25 +23,22 @@
     <br><br>
     <input type="text" id="result" readonly>
 
+    <!-- Gehostete beep MP3 -->
+    <audio id="beepSound" src="https://soundbible.com/mp3/Electronic_Chime-KevanGC-495939803.mp3" preload="auto"></audio>
+
     <script>
         const video = document.getElementById('video');
         const overlay = document.getElementById('overlay');
         const startButton = document.getElementById('startButton');
         const testAudioButton = document.getElementById('testAudioButton');
         const resultInput = document.getElementById('result');
+        const beepSound = document.getElementById('beepSound');
 
         let codeReader;
         let lastScannedCode = '';
 
         function beep() {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const context = new AudioContext();
-            const oscillator = context.createOscillator();
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(800, context.currentTime);
-            oscillator.connect(context.destination);
-            oscillator.start();
-            oscillator.stop(context.currentTime + 0.1);
+            beepSound.play().catch(error => console.warn('Beep playback failed', error));
         }
 
         startButton.addEventListener('click', () => {
@@ -78,7 +75,7 @@
         }
 
         function flashOverlay() {
-            overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
+            overlay.style.backgroundColor = 'rgba(0, 255, 0, 0.5)'; // Grüner Flash
             setTimeout(() => {
                 overlay.style.backgroundColor = 'transparent';
             }, 100);
