@@ -23,13 +23,28 @@
 
         let lastScannedCode = '';
         let lastScannedTime = 0;
-
-        const beep = new Howl({
-            src: ['https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3']
-        });
+        let beep;
 
         startButton.addEventListener('click', () => {
-            codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+            // Initialisiere den Sound erst nach Benutzerinteraktion
+            if (!beep) {
+                beep = new Howl({
+                    src: ['https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3']
+                });
+            }
+
+            codeReader.listVideoInputDevices()
+                .then((videoInputDevices) => {
+                    const selectedDeviceId = videoInputDevices[0].deviceId;
+                    startScanning(selectedDeviceId);
+                })
+                .catch((err) => {
+                    console.error(err);
+                });
+        });
+
+        function startScanning(deviceId) {
+            codeReader.decodeFromVideoDevice(deviceId, 'video', (result, err) => {
                 if (result) {
                     const currentTime = Date.now();
                     if (result.text !== lastScannedCode || currentTime - lastScannedTime > 1000) {
@@ -45,7 +60,7 @@
             }).catch((err) => {
                 console.error(err);
             });
-        });
+        }
 
         window.addEventListener('beforeunload', () => {
             codeReader.reset();
