@@ -4,27 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Scanner</title>
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 </head>
 <body>
     <h1>Barcode Scanner</h1>
-    <video id="video" width="300" height="200" style="border: 1px solid gray"></video>
+    <div id="scanner-container">
+        <video id="video" width="300" height="200" style="border: 1px solid gray"></video>
+    </div>
     <br>
     <button id="startButton">Scanner starten</button>
+    <button id="testAudioButton">Audio testen</button>
     <br><br>
     <input type="text" id="result" readonly>
 
     <script>
-        const video = document.getElementById('video');
         const startButton = document.getElementById('startButton');
+        const testAudioButton = document.getElementById('testAudioButton');
         const resultInput = document.getElementById('result');
+        const scannerContainer = document.getElementById('scanner-container');
 
         let lastScannedCode = '';
         let lastScannedTime = 0;
         let audioContext;
         let beepBuffer;
 
-        // Erstelle Audio-Kontext und lade den Beep-Sound
         function initAudio() {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             fetch('https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3')
@@ -35,7 +38,6 @@
                 });
         }
 
-        // Spiele den Beep-Sound ab
         function playBeep() {
             if (audioContext && beepBuffer) {
                 const source = audioContext.createBufferSource();
@@ -49,53 +51,75 @@
             if (!audioContext) {
                 initAudio();
             }
-
-            const hints = new Map();
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-                ZXing.BarcodeFormat.QR_CODE,
-                ZXing.BarcodeFormat.EAN_13,
-                ZXing.BarcodeFormat.CODE_128,
-                ZXing.BarcodeFormat.DATA_MATRIX,
-                // Fügen Sie hier weitere Formate hinzu, die Sie unterstützen möchten
-            ]);
-            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-            const codeReader = new ZXing.BrowserMultiFormatReader(hints);
-
-            codeReader.listVideoInputDevices()
-                .then((videoInputDevices) => {
-                    const selectedDeviceId = videoInputDevices[0].deviceId;
-                    startScanning(codeReader, selectedDeviceId);
-                })
-                .catch((err) => {
-                    console.error(err);
-                });
+            startScanner();
         });
 
-        function startScanning(codeReader, deviceId) {
-            codeReader.decodeFromVideoDevice(deviceId, 'video', (result, err) => {
-                if (result) {
-                    const currentTime = Date.now();
-                    if (result.text !== lastScannedCode || currentTime - lastScannedTime > 1000) {
-                        lastScannedCode = result.text;
-                        lastScannedTime = currentTime;
-                        resultInput.value = result.text;
-                        playBeep();
+        testAudioButton.addEventListener('click', () => {
+            if (!audioContext) {
+                initAudio();
+            }
+            playBeep();
+        });
+
+        function startScanner() {
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: scannerContainer,
+                    constraints: {
+                        width: 300,
+                        height: 200,
+                        facingMode: "environment"
+                    },
+                },
+                decoder: {
+                    readers: [
+                        "code_128_reader",
+                        "ean_reader",
+                        "ean_8_reader",
+                        "code_39_reader",
+                        "code_39_vin_reader",
+                        "codabar_reader",
+                        "upc_reader",
+                        "upc_e_reader",
+                        "i2of5_reader"
+                    ],
+                    debug: {
+                        showCanvas: true,
+                        showPatches: true,
+                        showFoundPatches: true,
+                        showSkeleton: true,
+                        showLabels: true,
+                        showPatchLabels: true,
+                        showRemainingPatchLabels: true,
+                        boxFromPatches: {
+                            showTransformed: true,
+                            showTransformedBox: true,
+                            showBB: true
+                        }
                     }
+                },
+            }, function(err) {
+                if (err) {
+                    console.log(err);
+                    return;
                 }
-                if (err && !(err instanceof ZXing.NotFoundException)) {
-                    console.error(err);
+                console.log("Quagga initialization finished. Ready to start");
+                Quagga.start();
+            });
+
+            Quagga.onDetected(function(result) {
+                const code = result.codeResult.code;
+                const currentTime = Date.now();
+                if (code !== lastScannedCode || currentTime - lastScannedTime > 1000) {
+                    lastScannedCode = code;
+                    lastScannedTime = currentTime;
+                    resultInput.value = code;
+                    playBeep();
                 }
-            }).catch((err) => {
-                console.error(err);
             });
         }
-
-        window.addEventListener('beforeunload', () => {
-            if (codeReader) {
-                codeReader.reset();
-            }
-        });
     </script>
 </body>
 </html>
